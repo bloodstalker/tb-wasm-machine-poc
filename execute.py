@@ -256,7 +256,7 @@ class Execute(): # pragma: no cover
 
     def run_unreachable(self, opcodeint, immediates):
         # trap
-        raise Exception(Colors.red + "running an unreachable function..." + Colors.ENDC)
+        raise Exception(Colors.red + "trapped." + Colors.ENDC)
 
     def run_nop(self, opcodeint, immediates):
         # literally do nothing

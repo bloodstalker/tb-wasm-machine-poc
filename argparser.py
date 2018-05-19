@@ -19,6 +19,7 @@ import signal
 _DBG_ = True
 
 def SigHandler_SIGINT(signum, frame):
+    print()
     sys.exit(0)
 
 # we first read the object file and put all the sections in this class
@@ -76,6 +77,7 @@ class CLIArgParser(object):
         parser.add_argument("--hexdump", type=int, help="dumps all sections")
         parser.add_argument("--dbgsection", type=str, help="dumps the parsed section provided", default="")
         parser.add_argument("--interactive", action='store_true', help="open in cli mode", default=False)
+        parser.add_argument("--rawdump", type=int, nargs=2, help="dumps all sections")
 
         self.args = parser.parse_args()
 

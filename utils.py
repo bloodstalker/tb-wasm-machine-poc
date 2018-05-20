@@ -2,7 +2,6 @@ from OpCodes import *
 import numpy as np
 import struct as stc
 
-
 class ParseFlags:
     def __init__(self, wast_path, wasm_path, as_path, disa_path, out_path, dbg, unval, memdump
                  , idxspc, run, metric, gas, entry):
@@ -20,7 +19,6 @@ class ParseFlags:
         self.gas = gas
         self.entry = entry
 
-
 # pretty print
 class Colors:
     purple = '\033[95m'
@@ -35,7 +33,6 @@ class Colors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-
 def LEB128UnsignedDecode(bytelist):
     result = 0
     shift = 0
@@ -45,7 +42,6 @@ def LEB128UnsignedDecode(bytelist):
             break
         shift += 7
     return(result)
-
 
 def LEB128SignedDecode(bytelist):
     result = 0
@@ -61,7 +57,6 @@ def LEB128SignedDecode(bytelist):
         result |= - (1 << shift)
 
     return(result)
-
 
 def LEB128UnsignedEncode(int_val):
     if int_val < 0:
@@ -92,7 +87,6 @@ def LEB128SignedEncode(int_val):
 
     return(byte_array)
 
-
 # @DEVI-FIXME-MVP-only-we currently inly support consts and get_global
 # interprets the init-exprs
 def init_interpret(expr):
@@ -120,7 +114,6 @@ def init_interpret(expr):
         raise Exception(Colors.red + "init expr has no block end." + Colors.ENDC)
 
     return(const)
-
 
 # reads different-typed values from a byte array, takes in the bytearray, the
 # current offset the read should be performed from and the kind of value that
@@ -161,9 +154,7 @@ def Read(section_byte, offset, kind):
             byte = int(section_byte[offset])
             read_bytes += 1
             offset += 1
-
             operand.append(byte)
-
             # @DEVI-what happens when we decode a 56-bit value?
             if byte == 0x80 or byte == 0xff:
                 pass
@@ -172,40 +163,31 @@ def Read(section_byte, offset, kind):
             else:
                 # we have read the lasy byte of the operand
                 break
-
         return_list = LEB128SignedDecode(operand)
         operand = []
-
     return return_list, offset, read_bytes
-
 
 def ror(val, type_length, rot_size):
     rot_size_rem = rot_size % type_length
     return (((val >> rot_size_rem) & (2**type_length - 1)) | ((val & (2**rot_size_rem - 1)) << (type_length - rot_size_rem)))
 
-
 def rol(val, type_length, rot_size):
     rot_size_rem = rot_size % type_length
     return (((val << rot_size_rem) & (2**type_length - 1)) | ((val & ((2**type_length - 1) - (2**(type_length - rot_size_rem) - 1))) >> (type_length - rot_size_rem)))
-
 
 # @DEVI-these are here because i wanted to test them to make sure what i thik is
 # happening is really happening
 def reinterpretf32toi32(val):
     return (stc.unpack("i", stc.pack("f" ,val))[0])
 
-
 def reinterpretf64toi64(val):
     return (stc.unpack("Q", stc.pack("d", val))[0])
-
 
 def reinterpreti32tof32(val):
     return (stc.unpack("f", stc.pack("i", val))[0])
 
-
 def reinterpreti64tof64(val):
     return (stc.unpack("d", stc.pack("Q", val))[0])
-
 
 # @DEVI-FIXME
 def clz(val, _type):
@@ -256,7 +238,6 @@ def ctz(val, _type):
     else:
         raise Exception(Colors.red + "unsupported type passed to ctz." + Colors.ENDC)
     return cnt
-
 
 # @DEVI-FIXME
 def pop_cnt(val, _type):
@@ -337,3 +318,108 @@ def dumpprettysections(sections_list, width, section_name):
         line_counter = 0
         module_counter += 1
         section_offset = 0
+
+def popcnt32(r1):
+    temp = r1
+    temp = (temp & 0x55555555) + ((temp >> 1) & 0x55555555)
+    temp = (temp & 0x33333333) + ((temp >> 2) & 0x33333333)
+    temp = (temp & 0x0f0f0f0f) + ((temp >> 4) & 0x0f0f0f0f)
+    temp = (temp & 0x00ff00ff) + ((temp >> 8) & 0x00ff00ff)
+    temp = (temp & 0x0000ffff) + ((temp >> 16) & 0x0000ffff)
+    return temp
+
+def popcnt64(r1):
+    temp = r1
+    temp = (temp & 0x5555555555555555) + ((temp >> 1) & 0x5555555555555555)
+    temp = (temp & 0x3333333333333333) + ((temp >> 2) & 0x3333333333333333)
+    temp = (temp & 0x0f0f0f0f0f0f0f0f) + ((temp >> 4) & 0x0f0f0f0f0f0f0f0f)
+    temp = (temp & 0x00ff00ff00ff00ff) + ((temp >> 8) & 0x00ff00ff00ff00ff)
+    temp = (temp & 0x0000ffff0000ffff) + ((temp >> 16) & 0x0000ffff0000ffff)
+    temp = (temp & 0x00000000ffffffff) + ((temp >> 32) & 0x00000000ffffffff)
+    return temp
+
+def clz32(r1):
+    if r1 == 0: return 32
+    temp_r1 = r1
+    n = 0
+    if temp_r1 & 0xffff0000 == 0:
+        n += 16
+        temp_r1 = temp_r1 << 16
+    if temp_r1 & 0xff000000 == 0:
+        n += 8
+        temp_r1 = temp_r1 << 8
+    if temp_r1 & 0xf0000000 == 0:
+        n += 4
+        temp_r1 = temp_r1 << 4
+    if temp_r1 & 0xc0000000 == 0:
+        n += 2
+        temp_r1 = temp_r1 << 2
+    if temp_r1 & 0x8000000 == 0:
+        n += 1
+    return n
+
+def clz64(r1):
+    if r1 == 0: return 64
+    temp_r1 = r1
+    n = 0
+    if temp_r1 & 0xffffffff00000000 == 0:
+        n += 32
+        temp_r1 = temp_r1 << 32
+    if temp_r1 & 0xffff000000000000 == 0:
+        n += 16
+        temp_r1 == temp_r1 << 16
+    if temp_r1 & 0xff00000000000000 == 0:
+        n+= 8
+        temp_r1 = temp_r1 << 8
+    if temp_r1 & 0xf000000000000000 == 0:
+        n += 4
+        temp_r1 = temp_r1 << 4
+    if temp_r1 & 0xc000000000000000 == 0:
+        n += 2
+        temp_r1 = temp_r1 << 2
+    if temp_r1 & 0x8000000000000000 == 0:
+        n += 1
+    return n
+
+def ctz32(r1):
+    if r1 == 0: return 32
+    temp_r1 = r1
+    n = 0
+    if temp_r1 & 0x0000ffff == 0:
+        n += 16
+        temp_r1 = temp_r1 >> 16
+    if temp_r1 & 0x000000ff == 0:
+        n += 8
+        temp_r1 = temp_r1 >> 8
+    if temp_r1 & 0x0000000f == 0:
+        n += 4
+        temp_r1 = temp_r1 >> 4
+    if temp_r1 & 0x00000003 == 0:
+        n += 2
+        temp_r1 = temp_r1 >> 2
+    if temp_r1 & 0x00000001 == 0:
+        n += 1
+    return n
+
+def ctz64(r1):
+    if r1 == 0: return 64
+    temp_r1 = r1
+    n = 0
+    if temp_r1 & 0x00000000ffffffff == 0:
+        n += 32
+        temp_r1 = temp_r1 >> 32
+    if temp_r1 & 0x000000000000ffff == 0:
+        n += 16
+        temp_r1 = temp_r1 >> 16
+    if temp_r1 & 0x00000000000000ff == 0:
+        n += 8
+        temp_r1 = temp_r1 >> 8
+    if temp_r1 & 0x000000000000000f == 0:
+        n += 4
+        temp_r1 = temp_r1 >> 4
+    if temp_r1 & 0x0000000000000003 == 0:
+        n += 2
+        temp_r1 = temp_r1 >> 2
+    if temp_r1 & 0x0000000000000001 == 0:
+        n += 1
+    return n

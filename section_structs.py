@@ -268,3 +268,11 @@ class Module():
         self.element_section = element_section
         self.code_section = code_section
         self.data_section = data_section
+
+'''
+class RT_INS_CELL(object):
+    def __init__(self):
+        label : str
+        mnemonic : str
+        ops : list
+'''

@@ -15,7 +15,6 @@ import readline
 import code
 import signal
 
-
 _DBG_ = True
 
 def SigHandler_SIGINT(signum, frame):
@@ -56,7 +55,7 @@ def Conver2Int(little_endian, size, bytelist):
 
 
 # the argparser
-class CLIArgParser(object):
+class Argparser(object):
     def __init__(self):
         parser = argparse.ArgumentParser()
         parser.add_argument("--wast", type=str, help="path to the wasm text file")
@@ -78,25 +77,12 @@ class CLIArgParser(object):
         parser.add_argument("--dbgsection", type=str, help="dumps the parsed section provided", default="")
         parser.add_argument("--interactive", action='store_true', help="open in cli mode", default=False)
         parser.add_argument("--rawdump", type=int, nargs=2, help="dumps all sections")
-
         self.args = parser.parse_args()
-
         if self.args.wasm is not None and self.args.wast is not None:
             raise Exception("the --wast option and the --wasm option cannot\
                             be set at the same time. you need to choose one.")
 
-    def getWASTPath(self):
-        return self.args.wast
-
-    def getWASMPath(self):
-        return self.args.wasm
-
-    def getASPath(self):
-        return self.args.asb
-
-    def getDISASPath(self):
-        return self.args.dis
-
+    '''
     def getOutputPath(self):
         return self.args.o
 
@@ -106,15 +92,6 @@ class CLIArgParser(object):
     def getUNVAL(self):
         return self.args.unval
 
-    def getMEMDUMP(self):
-        return self.args.memdump
-
-    def getIDXSPC(self):
-        return self.args.idxspc
-
-    def getRun(self):
-        return self.args.run
-
     def getMetric(self):
         return self.args.metric
 
@@ -123,15 +100,12 @@ class CLIArgParser(object):
 
     def getEntry(self):
         return self.args.entry
-
-    def getLink(self):
-        return self.args.link
+    '''
 
     def getParseFlags(self):
         return(ParseFlags(self.args.wast, self.args.wasm, self.args.asb, self.args.dis,
                           self.args.o, self.args.dbg, self.args.unval, self.args.memdump,
                           self.args.idxspc, self.args.run, self.args.metric, self.args.gas, self.args.entry))
-
 
 # this class is responsible for reading the wasm text file- the first part of
 # our assembler
@@ -1376,69 +1350,67 @@ class PythonInterpreter(object):
 
 
 
-def main():
-    try:
-        argparser = CLIArgParser()
-        interpreter = PythonInterpreter()
+def premain(argparser):
+    interpreter = PythonInterpreter()
+    if argparser.args.wasm:
+        for file_path in argparser.args.wasm:
+            module = interpreter.parse(file_path)
+            interpreter.appendmodule(module)
+            if argparser.args.dbg or argparser.args.dbgsection:
+                interpreter.dump_sections(module, argparser.args.dbgsection)
+            if interpreter.runValidations():
+                print(Colors.red + "validations are not implemented yet" + Colors.ENDC)
+                pass
+            else:
+                print(Colors.red + 'failed validation tests' + Colors.ENDC)
+            vm = VM(interpreter.getmodules())
+            vm.setFlags(argparser.getParseFlags())
+            ms = vm.getState()
+            if argparser.args.idxspc:
+                DumpIndexSpaces(ms)
+            if argparser.args.memdump:
+                DumpLinearMems(ms.Linear_Memory, argparser.getMEMDUMP())
+            if argparser.args.run:
+                vm.run()
+            # merklizer = Merklizer(ms.Linear_Memory[0][0:512], module)
+            # treelength, hashtree = merklizer.run()
 
-        if argparser.getWASMPath() is not None:
-            for file_path in argparser.getWASMPath():
-                module = interpreter.parse(file_path)
-                interpreter.appendmodule(module)
-                if argparser.getDBG() or argparser.args.dbgsection:
-                    interpreter.dump_sections(module, argparser.args.dbgsection)
-                if interpreter.runValidations():
-                    pass
-                else:
-                    print(Colors.red + 'failed validation tests' + Colors.ENDC)
-                vm = VM(interpreter.getmodules())
-                vm.setFlags(argparser.getParseFlags())
-                ms = vm.getState()
-                if argparser.getIDXSPC():
-                    DumpIndexSpaces(ms)
-                if argparser.getMEMDUMP():
-                    DumpLinearMems(ms.Linear_Memory, argparser.getMEMDUMP())
-                if argparser.getRun():
-                    vm.run()
-                # merklizer = Merklizer(ms.Linear_Memory[0][0:512], module)
-                # treelength, hashtree = merklizer.run()
-
-        if argparser.args.interactive:
-            variables = globals().copy()
-            variables.update(locals())
-            shell = code.InteractiveConsole(variables)
-            shell.interact(banner="WASM python REPL")
-
-        if argparser.args.hexdump:
-            dumpprettysections(interpreter.getsections(), argparser.args.hexdump, "")
-
-        if argparser.args.sectiondump is not None:
-            dumpprettysections(interpreter.getsections(), 24, argparser.args.sectiondump)
-
-        if argparser.getLink():
-            linker = Linker(interpreter.getmodules())
-
-        if argparser.getWASTPath() is not None:
-            #print(argparser.getWASTPath())
-            parser = ParserV1(argparser.getWASTPath())
-            parser.run()
-
-        # WIP-the assmebler
-        if argparser.getASPath() is not None:
-            print("not implemented yet")
-            sys.exit(1)
-
-        # WIP-the disassmebler
-        if argparser.getDISASPath() is not None:
-            print("not implemented yet")
-            sys.exit(1)
-    except:
-        signal.signal(signal.SIGINT, SigHandler_SIGINT)
+    if argparser.args.interactive:
         variables = globals().copy()
         variables.update(locals())
         shell = code.InteractiveConsole(variables)
         shell.interact(banner="WASM python REPL")
+    if argparser.args.hexdump:
+        dumpprettysections(interpreter.getsections(), argparser.args.hexdump, "")
+    if argparser.args.sectiondump is not None:
+        dumpprettysections(interpreter.getsections(), 24, argparser.args.sectiondump)
+    if argparser.args.link:
+        linker = Linker(interpreter.getmodules())
+    if argparser.args.wast:
+        #print(argparser.getWASTPath())
+        parser = ParserV1(argparser.getWASTPath())
+        parser.run()
+    # WIP-the assmebler
+    if argparser.args.asb:
+        print("not implemented yet")
+        sys.exit(1)
+    # WIP-the disassmebler
+    if argparser.args.dis:
+        print("not implemented yet")
+        sys.exit(1)
 
+def main():
+    argparser = Argparser()
+    if argparser.args.dbg:
+        try:
+            premain(argparser)
+        except Exception:
+            variables = globals().copy()
+            variables.update(locals())
+            shell = code.InteractiveConsole(variables)
+            shell.interact(banner="DEVIWASM REPL")
+    else:
+        premain(argparser)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
